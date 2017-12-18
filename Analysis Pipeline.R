@@ -193,43 +193,77 @@ merge.png.pdf <- function(pdfFile, pngFiles, deletePngFiles=FALSE) {
 #
 # displayClusters ----
 #
-# This functions output is a graph via ggplot2. Once you have developed you 
-# have run your flowSOM  algorithm, will allow you to look at specific clusters 
-# you have identified using MEM, on 2D plots. It requires the Cluster number, 
-# and the X and Y parameters. You can examine multiple clusters in one 2D plot.
-# Defaults are Cluster 1, and will look at the FSC vs SSC parameter
+# This functions output is a graph via ggplot2. 
+# Variables - 
+# cluster - which cluster you want to look at, cluster 0 is the raw data
+# x and y - the parameters you want to look at, ie "FSC-A" "SSC-A" "CD11b"
+# filename - which files do you want to look at, default is fileNames which are
+#            currently all the FCS files in the working directory
+# binned - displays the data either binned or in raw format.
 #
 
-displayClusters <- function(cluster = 1, x = "FSC-A", y = "SSC-A", 
-                            filename = fileNames) {
+displayClusters <- function(cluster = 0, x = "FSC-A", y = "SSC-A", 
+                            filename = fileNames, binned = T) {
+  
+  
+  if (binned == T) {
+    bin <- geom_hex(bins = 200)
+  } else {
+    bin <- geom_point(size = 0.25)
+  }
+  
   
   tCluster <- NULL
-  params <- getParam(filenames[1])
-  
-  for (i in cluster){
-    tCluster <- rbind(tCluster, flowData[flowData$FlowSOM == i,])
-  }
+  params <- getParam(filename[1])
   
   x <- grep(x, params)
   y <- grep(y, params)
   
-  # you need to order the clusters by their filenames and their rownames for the clusters to be displayed
-  # correctly
-  Cluster <- tCluster[order(tCluster$Filename, as.numeric(rownames(tCluster))),, drop = F]  
+  
+  if (length(cluster) == 1 & cluster[1] == 0) {
+    
+    ggplot(flowData, aes(x = flowData[x], y = flowData[y])) + 
+      bin + 
+      labs(y = params[y], x = params[x]) +
+      guides(colour = guide_legend(override.aes = list(size = 5))) +
+      theme(panel.background = element_rect(colour = "white"), panel.grid = 
+              element_blank()) +
+      theme_bw() +
+      facet_wrap(~Filename)
+    
+    ggsave(paste0(params[x], " x ", params[y], " with  no Clusters ", ".png"), 
+           units = "in")
+  
+    } else {
+    
+  
+    for (i in cluster){
+      tCluster <- rbind(tCluster, flowData[flowData$FlowSOM == i,])
+    }
+  
+
+    # you need to order the clusters by their filenames and their rownames for 
+    # the clusters to be displayed correctly
+    Cluster <- tCluster[order(tCluster$Filename, 
+                              as.numeric(rownames(tCluster))),, drop = F]  
                                                                                           
-  no_Clust <- paste(unique(Cluster$FlowSOM), collapse = ", ")                                        
+    no_Clust <- paste(unique(Cluster$FlowSOM), collapse = ", ")                                        
   
   ggplot(flowData, aes(x = flowData[x], y = flowData[y])) + 
-    geom_hex(bins = 200) + 
-    geom_point(size = 0.5, alpha = 0.2, data =Cluster, aes(x = Cluster[x], y = Cluster[y], col = as.factor(FlowSOM))) +
+    bin + 
+    geom_point(size = 0.25, alpha = 0.2, data =Cluster, 
+               aes(x = Cluster[x], y = Cluster[y], col = as.factor(FlowSOM))) +
     scale_colour_discrete(name = "Cluster") +
     labs(y = params[y], x = params[x]) +
     guides(colour = guide_legend(override.aes = list(size = 5))) +
-    theme(panel.background = element_rect(colour = "white"), panel.grid = element_blank()) +
+    theme(panel.background = element_rect(colour = "white"), 
+          panel.grid = element_blank()) +
     theme_bw() +
     facet_wrap(~Filename)
   
-  ggsave(paste0(params[x], " x ", params[y], " with Clusters ", no_Clust, ".png"), units = "in")
+  ggsave(paste0(params[x], " x ", params[y], " with Clusters ", 
+                no_Clust, ".png"), units = "in")
+  }
 }
 
 
@@ -289,14 +323,15 @@ set.seed(42)
 # by 2 and examine the MEM output and map the clusters back onto 2D plots
 # to verify my clustering.
 flow.res <- FlowSOM(test, colsToUse = c(1:length(SOMData)), seed = 42, xdim = 7,
-                    ydim = 7, silent = F, nClus = 16, scale = F)
+                    ydim = 7, silent = F, maxMeta = 44, scale = T)
 
+# Plot flowSOM graph ----
 # generates spanning tree plot with the number of clusters it finds
 PlotStars(flow.res[[1]],backgroundValues = as.factor(flow.res[[2]]))
 
 # get the cluster information out of the flowSOM, change k to the number of 
 # clusters in the plot above
-metaClustering <- metaClustering_consensus(flow.res[[1]]$map$codes, k = 16)
+metaClustering <- metaClustering_consensus(flow.res[[1]]$map$codes, k = 13)
 
 metaClustering_perCell <- metaClustering[flow.res$FlowSOM$map$mapping[,1]]
 
@@ -336,7 +371,7 @@ merge.png.pdf(pdfFile = "Data.pdf", pngFiles = pngfiles, deletePngFiles = T)
 
 #### save relevant data to a .Rdata file type
 
-save(flowData, tsne, flow.res, fSOM_mem, file = "Cluster Data.Rdata")
+save(flowData, tsne, flow.res, fSOM_mem, file = "13 Cluster Data.Rdata")
 
 #
 # write fcs ----
@@ -365,7 +400,7 @@ for (i in a){
 # You can add just the files you want to display, it defaults to the global
 # variable of fileNames (which is all the fcs files in the working directory)
 
-displayClusters(c(5, 8, 6, 9, 11), x = "MHC", y = "SiglecF")
+displayClusters(c(2), x = "SiglecH", y = "CD11b")
 
 #
 # basic readout statistics ----
